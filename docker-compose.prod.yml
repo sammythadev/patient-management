@@ -20,6 +20,8 @@ services:
       POSTGRES_DB: ${AUTH_DB_NAME}
       POSTGRES_USER: ${DB_USERNAME}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "5433:5432"
     volumes:
       - auth-db-data:/var/lib/postgresql/data
     networks:
@@ -38,6 +40,8 @@ services:
       POSTGRES_DB: ${PATIENT_DB_NAME}
       POSTGRES_USER: ${DB_USERNAME}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "5000:5432"
     volumes:
       - patient-db-data:/var/lib/postgresql/data
     networks:
@@ -72,6 +76,9 @@ services:
       CLUSTER_ID: ${KAFKA_CLUSTER_ID:-MkU3OEVBNTcwNTJENDM2Qk}
     networks:
       - internal
+    ports:
+      - "9094:9094"
+      - "9092:9092"
     healthcheck:
       test: [ "CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1" ]
       interval: 15s
@@ -91,6 +98,8 @@ services:
         condition: service_healthy
     networks:
       - internal
+    ports:
+      - "4005:4005"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://auth-service-db:5432/${AUTH_DB_NAME}
       SPRING_DATASOURCE_USERNAME: ${DB_USERNAME}
@@ -106,6 +115,9 @@ services:
     restart: unless-stopped
     networks:
       - internal
+    ports:
+      - "4001:4001"
+      - "9001:9001"
     environment:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
 
@@ -118,6 +130,8 @@ services:
         condition: service_healthy
     networks:
       - internal
+    ports:
+      - "4002:4002"
     environment:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
       SPRING_KAFKA_CONSUMER_GROUP_ID: analytics-group
@@ -135,6 +149,8 @@ services:
         condition: service_started
     networks:
       - internal
+    ports:
+      - "4000:4000"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://patient-service-db:5432/${PATIENT_DB_NAME}
       SPRING_DATASOURCE_USERNAME: ${DB_USERNAME}
