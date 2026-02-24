@@ -1,8 +1,8 @@
 # =============================================================================
-# CI Pipeline — Run tests on push/PR to main
+# CI Pipeline - Run tests on push/PR to main
 # =============================================================================
 
-name: CI — Tests
+name: CI - Tests
 
 on:
   push:

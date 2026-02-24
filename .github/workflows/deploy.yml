@@ -1,14 +1,13 @@
 # =============================================================================
-# Deploy Pipeline — SSH into AWS EC2 and deploy
+# Deploy Pipeline - SSH into AWS EC2 and deploy
 # =============================================================================
 
 name: Deploy to AWS
 
 on:
   workflow_run:
-    workflows: ["CI — Tests"]
-    types:
-      - completed
+    workflows: ["CI - Tests"]
+    types: [completed]
     branches: [main]
 
 jobs:
@@ -27,7 +26,13 @@ jobs:
           host: ${{ secrets.AWS_HOST }}
           username: ${{ secrets.AWS_USER }}
           key: ${{ secrets.AWS_SSH_KEY }}
-          source: "docker-compose.prod.yml,.env.prod,scripts/deploy.sh,scripts/nginx.conf,scripts/aws-setup.sh"
+          source: >-
+            docker-compose.prod.yml,
+            scripts/deploy.sh,
+            docker-start.sh,
+            start-prod.sh,
+            scripts/nginx.conf,
+            scripts/aws-setup.sh
           target: ~/patient-management
 
       - name: Deploy via SSH
@@ -36,29 +41,38 @@ jobs:
           host: ${{ secrets.AWS_HOST }}
           username: ${{ secrets.AWS_USER }}
           key: ${{ secrets.AWS_SSH_KEY }}
-          envs: DOCKER_USERNAME,IMAGE_TAG,COMPOSE_PROJECT_NAME,DB_USERNAME,DB_PASSWORD,AUTH_DB_NAME,PATIENT_DB_NAME,KAFKA_BOOTSTRAP_SERVERS,JWT_SECRET,BILLING_SERVICE_ADDRESS,BILLING_SERVICE_GRPC_PORT
-        env:
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME || 'sammythadev' }}
-          IMAGE_TAG: latest
-          COMPOSE_PROJECT_NAME: ${{ secrets.COMPOSE_PROJECT_NAME || 'patient-management' }}
-          DB_USERNAME: ${{ secrets.DB_USERNAME }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          AUTH_DB_NAME: ${{ secrets.AUTH_DB_NAME }}
-          PATIENT_DB_NAME: ${{ secrets.PATIENT_DB_NAME }}
-          KAFKA_BOOTSTRAP_SERVERS: ${{ secrets.KAFKA_BOOTSTRAP_SERVERS || 'kafka:9092' }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          BILLING_SERVICE_ADDRESS: ${{ secrets.BILLING_SERVICE_ADDRESS || 'billing-service' }}
-          BILLING_SERVICE_GRPC_PORT: ${{ secrets.BILLING_SERVICE_GRPC_PORT || '9001' }}
+          envs: >-
+            DOCKER_USERNAME,
+            IMAGE_TAG,
+            COMPOSE_PROJECT_NAME,
+            DB_USERNAME,
+            DB_PASSWORD,
+            AUTH_DB_NAME,
+            PATIENT_DB_NAME,
+            KAFKA_BOOTSTRAP_SERVERS,
+            JWT_SECRET,
+            BILLING_SERVICE_ADDRESS,
+            BILLING_SERVICE_GRPC_PORT
           script: |
-            cd ~/patient-management
+            set -e
 
+            cd ~/patient-management
             mkdir -p scripts
 
-            # Ensure deploy script looks in scripts/ for .env and docker-compose.prod.yml
-            cp docker-compose.prod.yml scripts/docker-compose.prod.yml
+            # Validate required secrets
+            missing=0
+            for v in DOCKER_USERNAME DB_USERNAME DB_PASSWORD AUTH_DB_NAME PATIENT_DB_NAME JWT_SECRET; do
+              if [ -z "${!v:-}" ]; then
+                echo "ERROR: $v is not set"
+                missing=1
+              fi
+            done
+            if [ "$missing" -ne 0 ]; then
+              exit 1
+            fi
 
-            # Create scripts/.env.prod from GitHub secrets
-            cat > scripts/.env.prod << EOF
+            # Create .env.prod from GitHub secrets (root)
+            cat > .env.prod << EOF
             DOCKER_USERNAME=$DOCKER_USERNAME
             IMAGE_TAG=$IMAGE_TAG
             COMPOSE_PROJECT_NAME=$COMPOSE_PROJECT_NAME
@@ -72,8 +86,8 @@ jobs:
             BILLING_SERVICE_GRPC_PORT=$BILLING_SERVICE_GRPC_PORT
             EOF
 
-            # Create scripts/.env from scripts/.env.prod
-            cp scripts/.env.prod scripts/.env
+            # Create .env from .env.prod (root)
+            cp .env.prod .env
 
             # Install/ensure Docker + Nginx if missing (one-time)
             if ! command -v docker >/dev/null 2>&1 || ! command -v nginx >/dev/null 2>&1; then
@@ -91,6 +105,20 @@ jobs:
               sudo nginx -t && sudo systemctl restart nginx
             fi
 
-            # Make deploy script executable and run it
-            chmod +x scripts/deploy.sh
-            ./scripts/deploy.sh ${{ github.sha }}
+            # Make scripts executable
+            chmod +x scripts/deploy.sh docker-start.sh start-prod.sh
+
+            # Run deploy script
+            ./scripts/deploy.sh
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME || 'sammythadev' }}
+          IMAGE_TAG: latest
+          COMPOSE_PROJECT_NAME: ${{ secrets.COMPOSE_PROJECT_NAME || 'patient-management' }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          AUTH_DB_NAME: ${{ secrets.AUTH_DB_NAME }}
+          PATIENT_DB_NAME: ${{ secrets.PATIENT_DB_NAME }}
+          KAFKA_BOOTSTRAP_SERVERS: ${{ secrets.KAFKA_BOOTSTRAP_SERVERS || 'kafka:9092' }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          BILLING_SERVICE_ADDRESS: ${{ secrets.BILLING_SERVICE_ADDRESS || 'billing-service' }}
+          BILLING_SERVICE_GRPC_PORT: ${{ secrets.BILLING_SERVICE_GRPC_PORT || '9001' }}

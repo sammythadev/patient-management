@@ -11,14 +11,15 @@
 set -euo pipefail
 
 APP_DIR="$(cd "$(dirname "$0")" && pwd)"
-cd "$APP_DIR"
+ROOT_DIR="$(cd "$APP_DIR/.." && pwd)"
+cd "$ROOT_DIR"
 
-ENV_FILE="$APP_DIR/.env"
-COMPOSE_FILE="$APP_DIR/docker-compose.prod.yml"
+ENV_FILE="$ROOT_DIR/.env"
+COMPOSE_FILE="$ROOT_DIR/docker-compose.prod.yml"
 
 # Validate files exist
 if [ ! -f "$ENV_FILE" ]; then
-    echo "ERROR: $ENV_FILE not found. Copy .env.prod and fill in your values."
+    echo "ERROR: $ENV_FILE not found. Copy .env.prod to $ROOT_DIR/.env and fill in your values."
     exit 1
 fi
 
@@ -90,22 +91,103 @@ $COMPOSE_CMD -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d
 
 # ---- 4. Wait and check health ----
 echo ""
-echo ">>> Waiting for containers to start (30s)..."
-sleep 30
+echo ">>> Waiting for containers to become ready..."
+
+WAIT_TIMEOUT="${WAIT_TIMEOUT:-300}"
+WAIT_INTERVAL="${WAIT_INTERVAL:-5}"
+
+wait_for_container() {
+    local name="$1"
+    local mode="$2" # health|running
+    local start
+    start="$(date +%s)"
+
+    while true; do
+        local status health elapsed
+        status=$($DOCKER_BIN inspect -f '{{.State.Status}}' "$name" 2>/dev/null || echo "missing")
+        health=$($DOCKER_BIN inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$name" 2>/dev/null || echo "missing")
+        elapsed=$(( $(date +%s) - start ))
+
+        if [ "$status" = "running" ]; then
+            if [ "$mode" = "health" ]; then
+                if [ "$health" = "healthy" ]; then
+                    echo "    OK: $name is healthy"
+                    return 0
+                fi
+            else
+                echo "    OK: $name is running"
+                return 0
+            fi
+        fi
+
+        if [ "$status" = "exited" ] || [ "$status" = "dead" ]; then
+            echo "ERROR: $name is $status"
+            $COMPOSE_CMD -f "$COMPOSE_FILE" --env-file "$ENV_FILE" logs --no-color --tail 200 "$name" || true
+            return 1
+        fi
+
+        if [ "$elapsed" -ge "$WAIT_TIMEOUT" ]; then
+            echo "ERROR: Timed out waiting for $name ($mode)"
+            $COMPOSE_CMD -f "$COMPOSE_FILE" --env-file "$ENV_FILE" logs --no-color --tail 200 "$name" || true
+            return 1
+        fi
+
+        sleep "$WAIT_INTERVAL"
+    done
+}
+
+wait_for_http() {
+    local url="$1"
+    local timeout="${2:-120}"
+    local start
+    start="$(date +%s)"
+
+    while true; do
+        if curl -sf "$url" > /dev/null 2>&1; then
+            echo "    OK: $url is responding"
+            return 0
+        fi
+
+        if [ $(( $(date +%s) - start )) -ge "$timeout" ]; then
+            echo "ERROR: Timed out waiting for $url"
+            $COMPOSE_CMD -f "$COMPOSE_FILE" --env-file "$ENV_FILE" logs --no-color --tail 200 api-gateway || true
+            return 1
+        fi
+
+        sleep "$WAIT_INTERVAL"
+    done
+}
+
+HEALTHY_CONTAINERS=(
+    auth-service-db
+    patient-service-db
+    kafka
+)
+
+RUNNING_CONTAINERS=(
+    auth-service
+    billing-service
+    analytics-service
+    patient-service
+    api-gateway
+)
+
+for name in "${HEALTHY_CONTAINERS[@]}"; do
+    wait_for_container "$name" "health"
+done
+
+for name in "${RUNNING_CONTAINERS[@]}"; do
+    wait_for_container "$name" "running"
+done
 
 echo ""
 echo ">>> Container status:"
 $COMPOSE_CMD -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps
 
-# ---- 5. Quick health check ----
+# ---- 5. HTTP readiness check ----
 echo ""
-echo ">>> Health check (api-gateway on port 4004)..."
-if curl -sf http://localhost:4004 > /dev/null 2>&1; then
-    echo "    ✓ api-gateway is responding"
-else
-    echo "    ⚠ api-gateway not responding yet (may still be starting)"
-    echo "    Check logs: $COMPOSE_CMD -f $COMPOSE_FILE logs -f api-gateway"
-fi
+echo ">>> Waiting for api-gateway on port 4004..."
+wait_for_http "http://localhost:4004" 120
 
 echo ""
 echo "============================================="
