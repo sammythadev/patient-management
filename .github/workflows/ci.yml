@@ -63,8 +63,13 @@ jobs:
           distribution: 'temurin'
 
       - name: Start services with Docker Compose
-        run: docker compose up --build -d
+        run: |
+          docker network inspect internal >/dev/null 2>&1 || docker network create internal
+          docker volume inspect patient-management_auth-db-data >/dev/null 2>&1 || docker volume create patient-management_auth-db-data
+          docker volume inspect patient-management_patient-db-data >/dev/null 2>&1 || docker volume create patient-management_patient-db-data
+          docker compose -f docker-compose.dev.yml up --build -d --remove-orphans
         env:
+          COMPOSE_PROJECT_NAME: patient-management
           DB_USERNAME: admin_user
           DB_PASSWORD: testpassword
           AUTH_DB_NAME: auth_service_db
@@ -80,7 +85,7 @@ jobs:
         run: |
           echo "Waiting 60s for all services to start..."
           sleep 60
-          docker compose ps
+          docker compose -f docker-compose.dev.yml ps
 
       - name: Run integration tests
         working-directory: integration-tests
@@ -88,7 +93,7 @@ jobs:
 
       - name: Collect logs on failure
         if: failure()
-        run: docker compose logs > docker-logs.txt
+        run: docker compose -f docker-compose.dev.yml logs > docker-logs.txt
 
       - name: Upload logs on failure
         if: failure()
@@ -99,4 +104,4 @@ jobs:
 
       - name: Tear down
         if: always()
-        run: docker compose down -v
+        run: docker compose -f docker-compose.dev.yml down -v
