@@ -36,14 +36,19 @@ jobs:
           host: ${{ secrets.AWS_HOST }}
           username: ${{ secrets.AWS_USER }}
           key: ${{ secrets.AWS_SSH_KEY }}
+          envs: DOCKER_USERNAME,IMAGE_TAG,COMPOSE_PROJECT_NAME
           script: |
             cd ~/patient-management
 
-            # Use .env.prod as .env if .env doesn't exist
-            if [ ! -f .env ]; then
-              cp .env.prod .env
-              echo "WARNING: Using .env.prod as .env — update with production values!"
-            fi
+            # Create .env.prod from GitHub secrets
+            cat > .env.prod << EOF
+            DOCKER_USERNAME=$DOCKER_USERNAME
+            IMAGE_TAG=$IMAGE_TAG
+            COMPOSE_PROJECT_NAME=$COMPOSE_PROJECT_NAME
+            EOF
+
+            # Create .env from .env.prod
+            cp .env.prod .env
 
             # Make deploy script executable and run it
             chmod +x scripts/deploy.sh
