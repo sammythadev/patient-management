@@ -1,0 +1,47 @@
+# Gradle
+.gradle/
+build/
+out/
+*.jar
+*.war
+*.ear
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+
+# Logs
+logs/
+*.log
+
+# Environment
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+*.properties.local
+
+# Application
+temp/
+tmp/
+*.pid
