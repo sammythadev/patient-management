@@ -39,7 +39,7 @@ jobs:
           envs: DOCKER_USERNAME,IMAGE_TAG,COMPOSE_PROJECT_NAME,DB_USERNAME,DB_PASSWORD,AUTH_DB_NAME,PATIENT_DB_NAME,KAFKA_BOOTSTRAP_SERVERS,JWT_SECRET,BILLING_SERVICE_ADDRESS,BILLING_SERVICE_GRPC_PORT
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME || 'sammythadev' }}
-          IMAGE_TAG: ${{ secrets.IMAGE_TAG || github.sha }}
+          IMAGE_TAG: latest
           COMPOSE_PROJECT_NAME: ${{ secrets.COMPOSE_PROJECT_NAME || 'patient-management' }}
           DB_USERNAME: ${{ secrets.DB_USERNAME }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
