@@ -36,19 +36,30 @@ jobs:
           host: ${{ secrets.AWS_HOST }}
           username: ${{ secrets.AWS_USER }}
           key: ${{ secrets.AWS_SSH_KEY }}
-          envs: DOCKER_USERNAME,IMAGE_TAG,COMPOSE_PROJECT_NAME
+          envs: DOCKER_USERNAME,IMAGE_TAG,COMPOSE_PROJECT_NAME,DB_USERNAME,DB_PASSWORD,AUTH_DB_NAME,PATIENT_DB_NAME,KAFKA_BOOTSTRAP_SERVERS,JWT_SECRET,BILLING_SERVICE_ADDRESS,BILLING_SERVICE_GRPC_PORT
           script: |
             cd ~/patient-management
 
-            # Create .env.prod from GitHub secrets
-            cat > .env.prod << EOF
+            # Ensure deploy script looks in scripts/ for .env and docker-compose.prod.yml
+            cp docker-compose.prod.yml scripts/docker-compose.prod.yml
+
+            # Create scripts/.env.prod from GitHub secrets
+            cat > scripts/.env.prod << EOF
             DOCKER_USERNAME=$DOCKER_USERNAME
             IMAGE_TAG=$IMAGE_TAG
             COMPOSE_PROJECT_NAME=$COMPOSE_PROJECT_NAME
+            DB_USERNAME=$DB_USERNAME
+            DB_PASSWORD=$DB_PASSWORD
+            AUTH_DB_NAME=$AUTH_DB_NAME
+            PATIENT_DB_NAME=$PATIENT_DB_NAME
+            KAFKA_BOOTSTRAP_SERVERS=$KAFKA_BOOTSTRAP_SERVERS
+            JWT_SECRET=$JWT_SECRET
+            BILLING_SERVICE_ADDRESS=$BILLING_SERVICE_ADDRESS
+            BILLING_SERVICE_GRPC_PORT=$BILLING_SERVICE_GRPC_PORT
             EOF
 
-            # Create .env from .env.prod
-            cp .env.prod .env
+            # Create scripts/.env from scripts/.env.prod
+            cp scripts/.env.prod scripts/.env
 
             # Make deploy script executable and run it
             chmod +x scripts/deploy.sh
