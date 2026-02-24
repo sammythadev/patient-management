@@ -1,0 +1,187 @@
+# =============================================================================
+# docker-compose.dev.yml — Local dev: test containers pulled from Docker Hub
+# =============================================================================
+# Usage:
+#   1. Set your Docker Hub username in .env (DOCKER_USERNAME=your-username)
+#   2. docker compose -f docker-compose.dev.yml up -d
+#   3. Test: curl http://localhost:4004/auth/login
+#   4. docker compose -f docker-compose.dev.yml down -v
+# =============================================================================
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # DATABASES
+  # ---------------------------------------------------------------------------
+  auth-service-db:
+    image: postgres:17
+    container_name: auth-service-db
+    environment:
+      POSTGRES_DB: auth_service_db
+      POSTGRES_USER: admin_user
+      POSTGRES_PASSWORD: password123
+    ports:
+      - "5433:5432"
+    volumes:
+      - auth-db-data:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U admin_user -d auth_service_db" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  patient-service-db:
+    image: postgres:17
+    container_name: patient-service-db
+    environment:
+      POSTGRES_DB: patient_service_db
+      POSTGRES_USER: admin_user
+      POSTGRES_PASSWORD: password123
+    ports:
+      - "5000:5432"
+    volumes:
+      - patient-db-data:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U admin_user -d patient_service_db" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # KAFKA (KRaft mode - no Zookeeper)
+  # ---------------------------------------------------------------------------
+  kafka:
+    image: apache/kafka:latest
+    container_name: kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,PLAINTEXT_HOST://0.0.0.0:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID:-MkU3OEVBNTcwNTJENDM2Qk}
+    ports:
+      - "9094:9094"
+      - "9092:9092"
+    networks:
+      - internal
+    healthcheck:
+      test: [ "CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1" ]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # APPLICATION SERVICES (pulled from Docker Hub)
+  # ---------------------------------------------------------------------------
+  auth-service:
+    image: ${DOCKER_USERNAME}/auth-service:${IMAGE_TAG:-latest}
+    container_name: auth-service
+    depends_on:
+      auth-service-db:
+        condition: service_healthy
+    networks:
+      - internal
+    ports:
+      - "4005:4005"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://auth-service-db:5432/auth_service_db
+      SPRING_DATASOURCE_USERNAME: admin_user
+      SPRING_DATASOURCE_PASSWORD: password123
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_SQL_INIT_MODE: always
+      SPRING_DATASOURCE_HIKARI_INITIALIZATION_FAIL_TIMEOUT: 60000
+      JWT_SECRET: Y2hhVEc3aHJnb0hYTzMyZ2ZqVkpiZ1RkZG93YWxrUkM=
+
+  billing-service:
+    image: ${DOCKER_USERNAME}/billing-service:${IMAGE_TAG:-latest}
+    container_name: billing-service
+    networks:
+      - internal
+    ports:
+      - "4001:4001"
+      - "9001:9001"
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+
+  analytics-service:
+    image: ${DOCKER_USERNAME}/analytics-service:${IMAGE_TAG:-latest}
+    container_name: analytics-service
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - internal
+    ports:
+      - "4002:4002"
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SPRING_KAFKA_CONSUMER_GROUP_ID: analytics-group
+
+  patient-service:
+    image: ${DOCKER_USERNAME}/patient-service:${IMAGE_TAG:-latest}
+    container_name: patient-service
+    depends_on:
+      patient-service-db:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      billing-service:
+        condition: service_started
+    networks:
+      - internal
+    ports:
+      - "4000:4000"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://patient-service-db:5432/patient_service_db
+      SPRING_DATASOURCE_USERNAME: admin_user
+      SPRING_DATASOURCE_PASSWORD: password123
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_SQL_INIT_MODE: always
+      SPRING_DATASOURCE_HIKARI_INITIALIZATION_FAIL_TIMEOUT: 60000
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      BILLING_SERVICE_ADDRESS: billing-service
+      BILLING_SERVICE_GRPC_PORT: 9001
+
+  api-gateway:
+    image: ${DOCKER_USERNAME}/api-gateway:${IMAGE_TAG:-latest}
+    container_name: api-gateway
+    depends_on:
+      auth-service:
+        condition: service_started
+      patient-service:
+        condition: service_started
+    ports:
+      - "4004:4004"
+    networks:
+      - internal
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      AUTH_SERVICE_URL: http://auth-service:4005
+      PATIENT_SERVICE_URL: http://patient-service:4000
+
+networks:
+  internal:
+    name: internal
+    external: true
+
+volumes:
+  auth-db-data:
+    name: ${COMPOSE_PROJECT_NAME:-patient-management}_auth-db-data
+    external: true
+  patient-db-data:
+    name: ${COMPOSE_PROJECT_NAME:-patient-management}_patient-db-data
+    external: true

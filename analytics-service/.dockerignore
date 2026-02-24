@@ -1,0 +1,28 @@
+# Build output
+target/
+
+# Maven wrapper (not used in Docker build)
+.mvn/
+mvnw
+mvnw.cmd
+
+# VCS and IDE
+.git/
+.gitignore
+.gitattributes
+.idea/
+*.iml
+
+# OS / tooling
+.DS_Store
+Thumbs.db
+
+# Docs and metadata
+README*
+HELP.md
+*.md
+*.log
+
+# Local env
+.env
+.env.*
