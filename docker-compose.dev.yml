@@ -88,7 +88,7 @@ services:
   # APPLICATION SERVICES (pulled from Docker Hub)
   # ---------------------------------------------------------------------------
   auth-service:
-    image: ${DOCKER_USERNAME}/auth-service:${IMAGE_TAG:-latest}
+    image: sammythadev/auth-service:${IMAGE_TAG:-latest}
     container_name: auth-service
     depends_on:
       auth-service-db:
@@ -107,7 +107,7 @@ services:
       JWT_SECRET: Y2hhVEc3aHJnb0hYTzMyZ2ZqVkpiZ1RkZG93YWxrUkM=
 
   billing-service:
-    image: ${DOCKER_USERNAME}/billing-service:${IMAGE_TAG:-latest}
+    image: sammythadev/billing-service:${IMAGE_TAG:-latest}
     container_name: billing-service
     networks:
       - internal
@@ -118,7 +118,7 @@ services:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
 
   analytics-service:
-    image: ${DOCKER_USERNAME}/analytics-service:${IMAGE_TAG:-latest}
+    image: sammythadev/analytics-service:${IMAGE_TAG:-latest}
     container_name: analytics-service
     depends_on:
       kafka:
@@ -132,7 +132,7 @@ services:
       SPRING_KAFKA_CONSUMER_GROUP_ID: analytics-group
 
   patient-service:
-    image: ${DOCKER_USERNAME}/patient-service:${IMAGE_TAG:-latest}
+    image: sammythadev/patient-service:${IMAGE_TAG:-latest}
     container_name: patient-service
     depends_on:
       patient-service-db:
@@ -157,7 +157,7 @@ services:
       BILLING_SERVICE_GRPC_PORT: 9001
 
   api-gateway:
-    image: ${DOCKER_USERNAME}/api-gateway:${IMAGE_TAG:-latest}
+    image: sammythadev/api-gateway:${IMAGE_TAG:-latest}
     container_name: api-gateway
     depends_on:
       auth-service:
