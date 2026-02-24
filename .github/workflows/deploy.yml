@@ -27,7 +27,7 @@ jobs:
           host: ${{ secrets.AWS_HOST }}
           username: ${{ secrets.AWS_USER }}
           key: ${{ secrets.AWS_SSH_KEY }}
-          source: "docker-compose.prod.yml,.env.prod,scripts/deploy.sh,scripts/nginx.conf"
+          source: "docker-compose.prod.yml,.env.prod,scripts/deploy.sh,scripts/nginx.conf,scripts/aws-setup.sh"
           target: ~/patient-management
 
       - name: Deploy via SSH
@@ -74,6 +74,22 @@ jobs:
 
             # Create scripts/.env from scripts/.env.prod
             cp scripts/.env.prod scripts/.env
+
+            # Install/ensure Docker + Nginx if missing (one-time)
+            if ! command -v docker >/dev/null 2>&1 || ! command -v nginx >/dev/null 2>&1; then
+              sudo bash scripts/aws-setup.sh
+            fi
+
+            # Ensure Docker is running
+            sudo systemctl start docker || true
+
+            # Ensure Nginx config is applied
+            if [ -f scripts/nginx.conf ]; then
+              sudo cp scripts/nginx.conf /etc/nginx/sites-available/patient-management
+              sudo ln -sf /etc/nginx/sites-available/patient-management /etc/nginx/sites-enabled/patient-management
+              sudo rm -f /etc/nginx/sites-enabled/default
+              sudo nginx -t && sudo systemctl restart nginx
+            fi
 
             # Make deploy script executable and run it
             chmod +x scripts/deploy.sh
