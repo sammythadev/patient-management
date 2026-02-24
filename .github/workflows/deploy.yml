@@ -37,8 +37,22 @@ jobs:
           username: ${{ secrets.AWS_USER }}
           key: ${{ secrets.AWS_SSH_KEY }}
           envs: DOCKER_USERNAME,IMAGE_TAG,COMPOSE_PROJECT_NAME,DB_USERNAME,DB_PASSWORD,AUTH_DB_NAME,PATIENT_DB_NAME,KAFKA_BOOTSTRAP_SERVERS,JWT_SECRET,BILLING_SERVICE_ADDRESS,BILLING_SERVICE_GRPC_PORT
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME || 'sammythadev' }}
+          IMAGE_TAG: ${{ secrets.IMAGE_TAG || github.sha }}
+          COMPOSE_PROJECT_NAME: ${{ secrets.COMPOSE_PROJECT_NAME || 'patient-management' }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          AUTH_DB_NAME: ${{ secrets.AUTH_DB_NAME }}
+          PATIENT_DB_NAME: ${{ secrets.PATIENT_DB_NAME }}
+          KAFKA_BOOTSTRAP_SERVERS: ${{ secrets.KAFKA_BOOTSTRAP_SERVERS || 'kafka:9092' }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          BILLING_SERVICE_ADDRESS: ${{ secrets.BILLING_SERVICE_ADDRESS || 'billing-service' }}
+          BILLING_SERVICE_GRPC_PORT: ${{ secrets.BILLING_SERVICE_GRPC_PORT || '9001' }}
           script: |
             cd ~/patient-management
+
+            mkdir -p scripts
 
             # Ensure deploy script looks in scripts/ for .env and docker-compose.prod.yml
             cp docker-compose.prod.yml scripts/docker-compose.prod.yml

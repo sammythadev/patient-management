@@ -13,7 +13,6 @@ set -euo pipefail
 APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$APP_DIR"
 
-TAG="${1:-latest}"
 ENV_FILE="$APP_DIR/.env"
 COMPOSE_FILE="$APP_DIR/docker-compose.prod.yml"
 
@@ -27,6 +26,19 @@ if [ ! -f "$COMPOSE_FILE" ]; then
     echo "ERROR: $COMPOSE_FILE not found."
     exit 1
 fi
+
+# Load .env variables so we can validate and use defaults
+set -a
+# shellcheck disable=SC1090
+. "$ENV_FILE"
+set +a
+
+if [ -z "${DOCKER_USERNAME:-}" ]; then
+    echo "ERROR: DOCKER_USERNAME is not set in $ENV_FILE."
+    exit 1
+fi
+
+TAG="${1:-${IMAGE_TAG:-latest}}"
 
 # Override IMAGE_TAG if provided
 if [ "$TAG" != "latest" ]; then
