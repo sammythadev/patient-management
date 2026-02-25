@@ -1,5 +1,5 @@
 ### creates a new patient entity
-POST http://localhost:4004/api/patients
+POST http://20.74.84.58:4004/api/patients
 Content-Type: application/json
 Authorization: Bearer {{token}}
 

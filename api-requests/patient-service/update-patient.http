@@ -1,6 +1,7 @@
 ### Updates an existing  patient entity
-PUT http://localhost:4000/patients/123e4567-e89b-12d3-a456-426614174000
+PUT http://20.74.84.58:4000/patients/123e4567-e89b-12d3-a456-426614174000
 Content-Type: application/json
+Authorization: Bearer {{token}}
 
 {
   "name": "John Doe Updated",
