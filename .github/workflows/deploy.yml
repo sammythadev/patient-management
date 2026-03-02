@@ -2,7 +2,7 @@
 # Deploy Pipeline - SSH into AWS EC2 and deploy
 # =============================================================================
 
-name: Deploy to AZURE VM
+name: Deploy to EC2
 
 on:
   workflow_run:

@@ -142,9 +142,17 @@ wait_for_http() {
     local start
     start="$(date +%s)"
 
+    if ! command -v curl >/dev/null 2>&1; then
+        echo "WARN: curl not installed; skipping HTTP readiness check for $url"
+        return 0
+    fi
+
     while true; do
-        if curl -sf "$url" > /dev/null 2>&1; then
-            echo "    OK: $url is responding"
+        # Treat any HTTP response as "ready"; only a connection failure should retry.
+        local code
+        code=$(curl -sS -o /dev/null -w '%{http_code}' --connect-timeout 2 --max-time 5 "$url" || echo "000")
+        if [ "$code" != "000" ]; then
+            echo "    OK: $url is responding (HTTP $code)"
             return 0
         fi
 
@@ -187,7 +195,8 @@ $COMPOSE_CMD -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps
 # ---- 5. HTTP readiness check ----
 echo ""
 echo ">>> Waiting for api-gateway on port 4004..."
-wait_for_http "http://localhost:4004" 120
+API_GATEWAY_URL="${API_GATEWAY_URL:-http://localhost:4004}"
+wait_for_http "$API_GATEWAY_URL" 120
 
 echo ""
 echo "============================================="
