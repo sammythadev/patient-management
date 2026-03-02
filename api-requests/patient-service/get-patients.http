@@ -1,4 +1,4 @@
 ### GET request to get all patients
-GET http://20.74.84.58:4004/api/patients
+GET http://98.83.35.44:4004/api/patients
 Authorization: Bearer {{token}}
 ###
